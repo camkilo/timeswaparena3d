@@ -12,6 +12,7 @@ const game = {
     platforms: [],
     covers: [],
     vehicles: [],
+    buildingParts: [], // Track destructible building parts
     keys: {},
     mouseMovement: { x: 0, y: 0 },
     time: 0,
@@ -335,12 +336,14 @@ function create10StoryBuilding(baseX, baseZ, width, depth, buildingIndex) {
     const WALL_THICKNESS = 0.3;
     const WINDOW_SIZE = 1.2;
     const WINDOW_SPACING = 3;
+    const ENTRANCE_WIDTH = 2.5;
+    const ENTRANCE_HEIGHT = 2.5;
     
     // Building exterior walls
     for (let floor = 0; floor < NUM_FLOORS; floor++) {
         const floorY = floor * FLOOR_HEIGHT;
         
-        // Create floor platform
+        // Create floor platform (destructible)
         const floorGeometry = new THREE.BoxGeometry(width, 0.3, depth);
         const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x8b7355 });
         const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -350,8 +353,19 @@ function create10StoryBuilding(baseX, baseZ, width, depth, buildingIndex) {
         game.scene.add(floorMesh);
         game.platforms.push({ mesh: floorMesh, height: floorY + 0.3 });
         
-        // Create walls with windows
-        createWallsWithWindows(baseX, baseZ, floorY, width, depth, FLOOR_HEIGHT, WALL_THICKNESS, WINDOW_SIZE, WINDOW_SPACING);
+        // Make floor destructible
+        game.buildingParts.push({
+            mesh: floorMesh,
+            health: 200,
+            maxHealth: 200,
+            type: 'floor',
+            building: buildingIndex,
+            floor: floor
+        });
+        
+        // Create walls with windows and entrance on ground floor
+        const hasEntrance = (floor === 0);
+        createDestructibleWallsWithWindows(baseX, baseZ, floorY, width, depth, FLOOR_HEIGHT, WALL_THICKNESS, WINDOW_SIZE, WINDOW_SPACING, hasEntrance, ENTRANCE_WIDTH, ENTRANCE_HEIGHT, buildingIndex, floor);
     }
     
     // Add stairs/ramps connecting floors
@@ -359,7 +373,7 @@ function create10StoryBuilding(baseX, baseZ, width, depth, buildingIndex) {
         createStaircase(baseX, baseZ, floor * FLOOR_HEIGHT, FLOOR_HEIGHT, width, depth);
     }
     
-    // Rooftop
+    // Rooftop (destructible)
     const roofGeometry = new THREE.BoxGeometry(width + 1, 0.5, depth + 1);
     const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
     const roof = new THREE.Mesh(roofGeometry, roofMaterial);
@@ -368,55 +382,138 @@ function create10StoryBuilding(baseX, baseZ, width, depth, buildingIndex) {
     roof.receiveShadow = true;
     game.scene.add(roof);
     game.platforms.push({ mesh: roof, height: NUM_FLOORS * FLOOR_HEIGHT + 0.5 });
+    
+    game.buildingParts.push({
+        mesh: roof,
+        health: 150,
+        maxHealth: 150,
+        type: 'roof',
+        building: buildingIndex
+    });
 }
 
-function createWallsWithWindows(x, z, y, width, depth, height, wallThickness, windowSize, windowSpacing) {
+function createDestructibleWallsWithWindows(x, z, y, width, depth, height, wallThickness, windowSize, windowSpacing, hasEntrance, entranceWidth, entranceHeight, buildingIndex, floor) {
     const windowY = y + height / 2;
     
     // North and South walls
     for (let side = 0; side < 2; side++) {
         const wallZ = z + (side === 0 ? -depth/2 : depth/2);
         const numWindows = Math.floor(width / windowSpacing);
+        const isEntranceSide = (side === 0 && hasEntrance); // Entrance on north side of ground floor
         
         for (let i = 0; i < numWindows; i++) {
             const windowX = x - width/2 + windowSpacing/2 + i * windowSpacing;
+            const isEntrancePosition = (isEntranceSide && i === Math.floor(numWindows / 2)); // Middle window position
             
             // Wall segments between windows
             if (i === 0) {
                 // Left edge wall
-                const wallGeometry = new THREE.BoxGeometry(windowSpacing/2, height, wallThickness);
-                const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x707070 });
-                const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-                wall.position.set(x - width/2 + windowSpacing/4, y + height/2, wallZ);
-                wall.castShadow = true;
-                wall.receiveShadow = true;
-                game.scene.add(wall);
+                if (!isEntrancePosition) {
+                    const wallGeometry = new THREE.BoxGeometry(windowSpacing/2, height, wallThickness);
+                    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x707070 });
+                    const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+                    wall.position.set(x - width/2 + windowSpacing/4, y + height/2, wallZ);
+                    wall.castShadow = true;
+                    wall.receiveShadow = true;
+                    game.scene.add(wall);
+                    
+                    // Make wall destructible
+                    game.buildingParts.push({
+                        mesh: wall,
+                        health: 100,
+                        maxHealth: 100,
+                        type: 'wall',
+                        building: buildingIndex,
+                        floor: floor
+                    });
+                }
             }
             
-            // Wall pillar between windows
-            const pillarGeometry = new THREE.BoxGeometry(windowSpacing - windowSize, height, wallThickness);
-            const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x707070 });
-            const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
-            pillar.position.set(windowX + windowSize/2 + (windowSpacing - windowSize)/2, y + height/2, wallZ);
-            pillar.castShadow = true;
-            pillar.receiveShadow = true;
-            game.scene.add(pillar);
-            
-            // Window frame (transparent glass effect)
-            const windowGeometry = new THREE.BoxGeometry(windowSize, windowSize, wallThickness * 0.5);
-            const windowMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x87ceeb, 
-                transparent: true, 
-                opacity: 0.3,
-                side: THREE.DoubleSide
-            });
-            const window = new THREE.Mesh(windowGeometry, windowMaterial);
-            window.position.set(windowX, windowY, wallZ);
-            game.scene.add(window);
+            if (isEntrancePosition) {
+                // Create entrance instead of window
+                // Entrance frame (doorway)
+                const doorFrameTop = new THREE.BoxGeometry(entranceWidth, 0.3, wallThickness);
+                const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
+                const doorTop = new THREE.Mesh(doorFrameTop, frameMaterial);
+                doorTop.position.set(windowX, y + entranceHeight, wallZ);
+                doorTop.castShadow = true;
+                doorTop.receiveShadow = true;
+                game.scene.add(doorTop);
+                
+                game.buildingParts.push({
+                    mesh: doorTop,
+                    health: 80,
+                    maxHealth: 80,
+                    type: 'doorframe',
+                    building: buildingIndex,
+                    floor: floor
+                });
+                
+                // Side pillars for door
+                for (let doorSide = 0; doorSide < 2; doorSide++) {
+                    const pillarGeometry = new THREE.BoxGeometry(0.3, entranceHeight, wallThickness);
+                    const pillar = new THREE.Mesh(pillarGeometry, frameMaterial);
+                    const pillarX = windowX + (doorSide === 0 ? -entranceWidth/2 : entranceWidth/2);
+                    pillar.position.set(pillarX, y + entranceHeight/2, wallZ);
+                    pillar.castShadow = true;
+                    pillar.receiveShadow = true;
+                    game.scene.add(pillar);
+                    
+                    game.buildingParts.push({
+                        mesh: pillar,
+                        health: 80,
+                        maxHealth: 80,
+                        type: 'doorframe',
+                        building: buildingIndex,
+                        floor: floor
+                    });
+                }
+            } else {
+                // Wall pillar between windows
+                const pillarGeometry = new THREE.BoxGeometry(windowSpacing - windowSize, height, wallThickness);
+                const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x707070 });
+                const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+                pillar.position.set(windowX + windowSize/2 + (windowSpacing - windowSize)/2, y + height/2, wallZ);
+                pillar.castShadow = true;
+                pillar.receiveShadow = true;
+                game.scene.add(pillar);
+                
+                // Make pillar destructible
+                game.buildingParts.push({
+                    mesh: pillar,
+                    health: 100,
+                    maxHealth: 100,
+                    type: 'wall',
+                    building: buildingIndex,
+                    floor: floor
+                });
+                
+                // Window frame (transparent glass effect - destructible)
+                const windowGeometry = new THREE.BoxGeometry(windowSize, windowSize, wallThickness * 0.5);
+                const windowMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x87ceeb, 
+                    transparent: true, 
+                    opacity: 0.3,
+                    side: THREE.DoubleSide
+                });
+                const window = new THREE.Mesh(windowGeometry, windowMaterial);
+                window.position.set(windowX, windowY, wallZ);
+                game.scene.add(window);
+                
+                // Make window destructible (weaker than walls)
+                game.buildingParts.push({
+                    mesh: window,
+                    health: 30,
+                    maxHealth: 30,
+                    type: 'window',
+                    building: buildingIndex,
+                    floor: floor
+                });
+            }
         }
     }
     
-    // East and West walls
+    // East and West walls (similar logic but without entrances)
     for (let side = 0; side < 2; side++) {
         const wallX = x + (side === 0 ? -width/2 : width/2);
         const numWindows = Math.floor(depth / windowSpacing);
@@ -433,6 +530,15 @@ function createWallsWithWindows(x, z, y, width, depth, height, wallThickness, wi
                 wall.castShadow = true;
                 wall.receiveShadow = true;
                 game.scene.add(wall);
+                
+                game.buildingParts.push({
+                    mesh: wall,
+                    health: 100,
+                    maxHealth: 100,
+                    type: 'wall',
+                    building: buildingIndex,
+                    floor: floor
+                });
             }
             
             // Wall pillar
@@ -443,6 +549,15 @@ function createWallsWithWindows(x, z, y, width, depth, height, wallThickness, wi
             pillar.castShadow = true;
             pillar.receiveShadow = true;
             game.scene.add(pillar);
+            
+            game.buildingParts.push({
+                mesh: pillar,
+                health: 100,
+                maxHealth: 100,
+                type: 'wall',
+                building: buildingIndex,
+                floor: floor
+            });
             
             // Window
             const windowGeometry = new THREE.BoxGeometry(wallThickness * 0.5, windowSize, windowSize);
@@ -455,6 +570,15 @@ function createWallsWithWindows(x, z, y, width, depth, height, wallThickness, wi
             const window = new THREE.Mesh(windowGeometry, windowMaterial);
             window.position.set(wallX, windowY, windowZ);
             game.scene.add(window);
+            
+            game.buildingParts.push({
+                mesh: window,
+                health: 30,
+                maxHealth: 30,
+                type: 'window',
+                building: buildingIndex,
+                floor: floor
+            });
         }
     }
 }
@@ -1175,14 +1299,148 @@ function updateProjectiles(deltaTime) {
                     break;
                 }
             }
+            
+            // Check collision with building parts
+            if (i < game.projectiles.length) { // Still exists after ghost check
+                for (let k = game.buildingParts.length - 1; k >= 0; k--) {
+                    const part = game.buildingParts[k];
+                    if (!part.mesh || !part.mesh.geometry) continue; // Skip destroyed parts
+                    
+                    const box = new THREE.Box3().setFromObject(part.mesh);
+                    if (box.containsPoint(projectile.mesh.position)) {
+                        damageBuildingPart(part, projectile.damage);
+                        game.scene.remove(projectile.mesh);
+                        game.projectiles.splice(i, 1);
+                        break;
+                    }
+                }
+            }
         }
         
         // Remove after lifetime
-        projectile.lifetime -= deltaTime;
-        if (projectile.lifetime <= 0 || Math.abs(projectile.mesh.position.x) > 50 || 
-            Math.abs(projectile.mesh.position.z) > 50) {
-            game.scene.remove(projectile.mesh);
-            game.projectiles.splice(i, 1);
+        if (i < game.projectiles.length) {
+            projectile.lifetime -= deltaTime;
+            if (projectile.lifetime <= 0 || Math.abs(projectile.mesh.position.x) > 60 || 
+                Math.abs(projectile.mesh.position.z) > 60) {
+                game.scene.remove(projectile.mesh);
+                game.projectiles.splice(i, 1);
+            }
+        }
+    }
+}
+
+function damageBuildingPart(part, damage) {
+    part.health -= damage;
+    
+    // Visual damage indicator - change color based on health
+    const healthPercent = part.health / part.maxHealth;
+    const material = part.mesh.material;
+    
+    if (healthPercent > 0.7) {
+        // Slight damage - slightly darker
+        material.color.setHex(part.type === 'window' ? 0x77bedb : (part.type === 'wall' ? 0x606060 : 0x7b6345));
+    } else if (healthPercent > 0.4) {
+        // Moderate damage - more visible cracks/darkness
+        material.color.setHex(part.type === 'window' ? 0x67aecb : (part.type === 'wall' ? 0x505050 : 0x6b5335));
+    } else if (healthPercent > 0) {
+        // Heavy damage - very dark, about to collapse
+        material.color.setHex(part.type === 'window' ? 0x579ebb : (part.type === 'wall' ? 0x404040 : 0x5b4325));
+    }
+    
+    // Check if part should be destroyed
+    if (part.health <= 0) {
+        destroyBuildingPart(part);
+    }
+}
+
+function destroyBuildingPart(part) {
+    // Create debris/collapse effect
+    createDebris(part.mesh.position.clone(), part.type);
+    
+    // Remove the mesh from scene
+    game.scene.remove(part.mesh);
+    
+    // Mark as destroyed
+    part.mesh = null;
+    part.health = 0;
+    
+    // Remove from platforms if it was a floor
+    if (part.type === 'floor' || part.type === 'roof') {
+        const platformIndex = game.platforms.findIndex(p => p.mesh === part.mesh);
+        if (platformIndex >= 0) {
+            game.platforms.splice(platformIndex, 1);
+        }
+    }
+}
+
+function createDebris(position, partType) {
+    // Create small debris pieces that fall and fade
+    const numPieces = partType === 'window' ? 5 : 8;
+    const debrisColor = partType === 'window' ? 0x87ceeb : 0x707070;
+    
+    for (let i = 0; i < numPieces; i++) {
+        const size = 0.2 + Math.random() * 0.3;
+        const debrisGeometry = new THREE.BoxGeometry(size, size, size);
+        const debrisMaterial = new THREE.MeshStandardMaterial({ 
+            color: debrisColor,
+            transparent: true,
+            opacity: 1
+        });
+        const debris = new THREE.Mesh(debrisGeometry, debrisMaterial);
+        debris.position.copy(position);
+        debris.position.x += (Math.random() - 0.5) * 2;
+        debris.position.y += (Math.random() - 0.5) * 2;
+        debris.position.z += (Math.random() - 0.5) * 2;
+        debris.castShadow = true;
+        game.scene.add(debris);
+        
+        // Add debris to a list for animation
+        const debrisData = {
+            mesh: debris,
+            velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 5,
+                Math.random() * 3,
+                (Math.random() - 0.5) * 5
+            ),
+            lifetime: 3,
+            rotation: new THREE.Vector3(
+                Math.random() * 0.2,
+                Math.random() * 0.2,
+                Math.random() * 0.2
+            )
+        };
+        
+        // Store debris temporarily for animation (we'll clean up in updateDebris)
+        if (!game.debris) game.debris = [];
+        game.debris.push(debrisData);
+    }
+}
+
+function updateDebris(deltaTime) {
+    if (!game.debris) return;
+    
+    for (let i = game.debris.length - 1; i >= 0; i--) {
+        const debris = game.debris[i];
+        
+        // Apply gravity
+        debris.velocity.y -= 15 * deltaTime;
+        
+        // Move debris
+        debris.mesh.position.add(debris.velocity.clone().multiplyScalar(deltaTime));
+        
+        // Rotate debris
+        debris.mesh.rotation.x += debris.rotation.x;
+        debris.mesh.rotation.y += debris.rotation.y;
+        debris.mesh.rotation.z += debris.rotation.z;
+        
+        // Fade out
+        debris.lifetime -= deltaTime;
+        debris.mesh.material.opacity = Math.max(0, debris.lifetime / 3);
+        
+        // Remove if expired or hit ground
+        if (debris.lifetime <= 0 || debris.mesh.position.y < 0) {
+            game.scene.remove(debris.mesh);
+            game.debris.splice(i, 1);
         }
     }
 }
@@ -1479,6 +1737,7 @@ function animate() {
         updateProjectiles(deltaTime);
         updateGhosts(deltaTime);
         updatePickups(deltaTime);
+        updateDebris(deltaTime);
         checkPickupCollision();
         updatePowerUps();
         updateRecording();
