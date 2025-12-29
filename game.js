@@ -11,6 +11,7 @@ const game = {
     pickups: [],
     platforms: [],
     covers: [],
+    vehicles: [],
     keys: {},
     mouseMovement: { x: 0, y: 0 },
     time: 0,
@@ -41,7 +42,9 @@ const player = {
     jumpForce: 8,
     damageMultiplier: 1,
     hasShield: false,
-    activeEffects: []
+    activeEffects: [],
+    inVehicle: null, // null or vehicle reference
+    vehicleRotation: 0
 };
 
 // Weapon configurations
@@ -98,6 +101,9 @@ function init() {
     
     // Create player
     createPlayer();
+    
+    // Create vehicles
+    createVehicles();
     
     // Create initial pickups
     spawnPickups();
@@ -307,49 +313,180 @@ function createSkyscraper() {
 }
 
 function createBuildings() {
-    // Create several building structures around the arena
-    const buildings = [
-        // North-west building complex (stacked buildings)
-        { x: -30, z: -30, w: 12, h: 15, d: 12, color: 0x666666, offset: 0 },
-        { x: -30, z: -30, w: 10, h: 20, d: 10, color: 0x777777, offset: 1 }, // Elevated on top
-        
-        // North-east structure
-        { x: 30, z: -30, w: 15, h: 12, d: 10, color: 0x6a6a6a, offset: 0 },
-        
-        // South-west building
-        { x: -30, z: 30, w: 10, h: 18, d: 15, color: 0x707070, offset: 0 },
-        
-        // South-east tower
-        { x: 35, z: 35, w: 8, h: 22, d: 8, color: 0x656565, offset: 0 },
-        
-        // Additional mid-sized buildings
-        { x: -15, z: -35, w: 8, h: 10, d: 8, color: 0x6f6f6f, offset: 0 },
-        { x: 15, z: -35, w: 8, h: 12, d: 8, color: 0x696969, offset: 0 },
-        { x: -35, z: 10, w: 10, h: 14, d: 8, color: 0x6d6d6d, offset: 0 },
-        { x: 35, z: -10, w: 8, h: 11, d: 10, color: 0x717171, offset: 0 }
+    // Create 10-story buildings with multiple floors, stairs, and windows
+    const buildingPositions = [
+        { x: -35, z: -35, w: 18, d: 18 },
+        { x: 35, z: -35, w: 20, d: 16 },
+        { x: -35, z: 35, w: 16, d: 20 },
+        { x: 35, z: 35, w: 18, d: 18 },
+        { x: 0, z: -40, w: 15, d: 15 },
+        { x: -40, z: 0, w: 15, d: 15 },
+        { x: 40, z: 0, w: 15, d: 15 }
     ];
     
-    buildings.forEach(building => {
-        const offset = building.offset; // offset is now explicitly defined for all buildings
-        const geometry = new THREE.BoxGeometry(building.w, building.h, building.d);
-        const material = new THREE.MeshStandardMaterial({ color: building.color });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(building.x, building.h / 2 + offset, building.z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        game.scene.add(mesh);
-        game.platforms.push({ mesh: mesh, height: building.h + offset });
-        
-        // Add rooftop platforms for gameplay
-        const roofGeometry = new THREE.BoxGeometry(building.w + 1, 0.5, building.d + 1);
-        const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x8b7355 });
-        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-        roof.position.set(building.x, building.h + offset + 0.25, building.z);
-        roof.castShadow = true;
-        roof.receiveShadow = true;
-        game.scene.add(roof);
-        game.platforms.push({ mesh: roof, height: building.h + offset + 0.5 });
+    buildingPositions.forEach((buildingData, index) => {
+        create10StoryBuilding(buildingData.x, buildingData.z, buildingData.w, buildingData.d, index);
     });
+}
+
+function create10StoryBuilding(baseX, baseZ, width, depth, buildingIndex) {
+    const floorHeight = 3;
+    const numFloors = 10;
+    const wallThickness = 0.3;
+    const windowSize = 1.2;
+    
+    // Building exterior walls
+    for (let floor = 0; floor < numFloors; floor++) {
+        const floorY = floor * floorHeight;
+        
+        // Create floor platform
+        const floorGeometry = new THREE.BoxGeometry(width, 0.3, depth);
+        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x8b7355 });
+        const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+        floorMesh.position.set(baseX, floorY + 0.15, baseZ);
+        floorMesh.castShadow = true;
+        floorMesh.receiveShadow = true;
+        game.scene.add(floorMesh);
+        game.platforms.push({ mesh: floorMesh, height: floorY + 0.3 });
+        
+        // Create walls with windows
+        createWallsWithWindows(baseX, baseZ, floorY, width, depth, floorHeight, wallThickness, windowSize);
+    }
+    
+    // Add stairs/ramps connecting floors
+    for (let floor = 0; floor < numFloors - 1; floor++) {
+        createStaircase(baseX, baseZ, floor * floorHeight, floorHeight, width, depth);
+    }
+    
+    // Rooftop
+    const roofGeometry = new THREE.BoxGeometry(width + 1, 0.5, depth + 1);
+    const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.set(baseX, numFloors * floorHeight + 0.25, baseZ);
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    game.scene.add(roof);
+    game.platforms.push({ mesh: roof, height: numFloors * floorHeight + 0.5 });
+}
+
+function createWallsWithWindows(x, z, y, width, depth, height, wallThickness, windowSize) {
+    const windowSpacing = 3;
+    const windowY = y + height / 2;
+    
+    // North and South walls
+    for (let side = 0; side < 2; side++) {
+        const wallZ = z + (side === 0 ? -depth/2 : depth/2);
+        const numWindows = Math.floor(width / windowSpacing);
+        
+        for (let i = 0; i < numWindows; i++) {
+            const windowX = x - width/2 + windowSpacing/2 + i * windowSpacing;
+            
+            // Wall segments between windows
+            if (i === 0) {
+                // Left edge wall
+                const wallGeometry = new THREE.BoxGeometry(windowSpacing/2, height, wallThickness);
+                const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x707070 });
+                const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+                wall.position.set(x - width/2 + windowSpacing/4, y + height/2, wallZ);
+                wall.castShadow = true;
+                wall.receiveShadow = true;
+                game.scene.add(wall);
+            }
+            
+            // Wall pillar between windows
+            const pillarGeometry = new THREE.BoxGeometry(windowSpacing - windowSize, height, wallThickness);
+            const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x707070 });
+            const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+            pillar.position.set(windowX + windowSize/2 + (windowSpacing - windowSize)/2, y + height/2, wallZ);
+            pillar.castShadow = true;
+            pillar.receiveShadow = true;
+            game.scene.add(pillar);
+            
+            // Window frame (transparent glass effect)
+            const windowGeometry = new THREE.BoxGeometry(windowSize, windowSize, wallThickness * 0.5);
+            const windowMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x87ceeb, 
+                transparent: true, 
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            const window = new THREE.Mesh(windowGeometry, windowMaterial);
+            window.position.set(windowX, windowY, wallZ);
+            game.scene.add(window);
+        }
+    }
+    
+    // East and West walls
+    for (let side = 0; side < 2; side++) {
+        const wallX = x + (side === 0 ? -width/2 : width/2);
+        const numWindows = Math.floor(depth / windowSpacing);
+        
+        for (let i = 0; i < numWindows; i++) {
+            const windowZ = z - depth/2 + windowSpacing/2 + i * windowSpacing;
+            
+            // Wall segments
+            if (i === 0) {
+                const wallGeometry = new THREE.BoxGeometry(wallThickness, height, windowSpacing/2);
+                const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x707070 });
+                const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+                wall.position.set(wallX, y + height/2, z - depth/2 + windowSpacing/4);
+                wall.castShadow = true;
+                wall.receiveShadow = true;
+                game.scene.add(wall);
+            }
+            
+            // Wall pillar
+            const pillarGeometry = new THREE.BoxGeometry(wallThickness, height, windowSpacing - windowSize);
+            const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x707070 });
+            const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+            pillar.position.set(wallX, y + height/2, windowZ + windowSize/2 + (windowSpacing - windowSize)/2);
+            pillar.castShadow = true;
+            pillar.receiveShadow = true;
+            game.scene.add(pillar);
+            
+            // Window
+            const windowGeometry = new THREE.BoxGeometry(wallThickness * 0.5, windowSize, windowSize);
+            const windowMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x87ceeb, 
+                transparent: true, 
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            const window = new THREE.Mesh(windowGeometry, windowMaterial);
+            window.position.set(wallX, windowY, windowZ);
+            game.scene.add(window);
+        }
+    }
+}
+
+function createStaircase(x, z, startY, height, buildingWidth, buildingDepth) {
+    // Create a ramp/staircase on the side of the building
+    const rampWidth = 3;
+    const rampLength = height * 2;
+    const rampX = x + buildingWidth / 2 + rampWidth / 2;
+    
+    const rampGeometry = new THREE.BoxGeometry(rampWidth, 0.5, rampLength);
+    const rampMaterial = new THREE.MeshStandardMaterial({ color: 0x8b7355 });
+    const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
+    ramp.position.set(rampX, startY + height / 2, z);
+    ramp.rotation.x = Math.atan2(height, rampLength);
+    ramp.castShadow = true;
+    ramp.receiveShadow = true;
+    game.scene.add(ramp);
+    game.platforms.push({ mesh: ramp, height: startY + height });
+    
+    // Add railings
+    const railingGeometry = new THREE.BoxGeometry(0.1, 1, rampLength);
+    const railingMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
+    
+    for (let side = 0; side < 2; side++) {
+        const railingOffset = side === 0 ? -rampWidth/2 : rampWidth/2;
+        const railing = new THREE.Mesh(railingGeometry, railingMaterial);
+        railing.position.set(rampX + railingOffset, startY + height / 2 + 0.5, z);
+        railing.rotation.x = Math.atan2(height, rampLength);
+        railing.castShadow = true;
+        game.scene.add(railing);
+    }
 }
 
 function createPlayer() {
@@ -362,6 +499,230 @@ function createPlayer() {
     game.scene.add(player.mesh);
     
     game.player = player;
+}
+
+function createVehicles() {
+    // Create tanks on the ground
+    createTank(new THREE.Vector3(-20, 1, 0), 0);
+    createTank(new THREE.Vector3(20, 1, 0), Math.PI);
+    
+    // Create helicopters at elevated positions
+    createHelicopter(new THREE.Vector3(0, 15, -25), 0);
+    createHelicopter(new THREE.Vector3(0, 15, 25), Math.PI);
+    
+    // Create airplanes at high altitude
+    createAirplane(new THREE.Vector3(-25, 20, -25), Math.PI / 4);
+    createAirplane(new THREE.Vector3(25, 20, 25), -3 * Math.PI / 4);
+}
+
+function createTank(position, rotation) {
+    const tankGroup = new THREE.Group();
+    
+    // Tank body
+    const bodyGeometry = new THREE.BoxGeometry(4, 2, 6);
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x3d5c3d });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 1;
+    body.castShadow = true;
+    tankGroup.add(body);
+    
+    // Tank turret
+    const turretGeometry = new THREE.CylinderGeometry(1.2, 1.2, 1.5, 8);
+    const turretMaterial = new THREE.MeshStandardMaterial({ color: 0x2d4c2d });
+    const turret = new THREE.Mesh(turretGeometry, turretMaterial);
+    turret.position.y = 2.5;
+    turret.castShadow = true;
+    tankGroup.add(turret);
+    
+    // Tank cannon
+    const cannonGeometry = new THREE.CylinderGeometry(0.3, 0.3, 4, 8);
+    const cannonMaterial = new THREE.MeshStandardMaterial({ color: 0x1d3c1d });
+    const cannon = new THREE.Mesh(cannonGeometry, cannonMaterial);
+    cannon.position.set(0, 2.5, 2.5);
+    cannon.rotation.x = Math.PI / 2;
+    cannon.castShadow = true;
+    tankGroup.add(cannon);
+    
+    // Wheels/treads
+    for (let i = 0; i < 3; i++) {
+        for (let side = 0; side < 2; side++) {
+            const wheelGeometry = new THREE.CylinderGeometry(0.6, 0.6, 0.5, 8);
+            const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+            const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            wheel.position.set(side === 0 ? -2.2 : 2.2, 0.6, -2 + i * 2);
+            wheel.rotation.z = Math.PI / 2;
+            wheel.castShadow = true;
+            tankGroup.add(wheel);
+        }
+    }
+    
+    tankGroup.position.copy(position);
+    tankGroup.rotation.y = rotation;
+    game.scene.add(tankGroup);
+    
+    const vehicle = {
+        type: 'tank',
+        mesh: tankGroup,
+        position: position.clone(),
+        rotation: rotation,
+        turret: turret,
+        cannon: cannon,
+        occupied: false,
+        shootPosition: new THREE.Vector3(0, 2.5, 4)
+    };
+    
+    game.vehicles.push(vehicle);
+}
+
+function createHelicopter(position, rotation) {
+    const heliGroup = new THREE.Group();
+    
+    // Helicopter body
+    const bodyGeometry = new THREE.BoxGeometry(3, 2, 6);
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4a4a4a });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.castShadow = true;
+    heliGroup.add(body);
+    
+    // Cockpit
+    const cockpitGeometry = new THREE.SphereGeometry(1.5, 8, 8);
+    const cockpitMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x87ceeb, 
+        transparent: true, 
+        opacity: 0.5
+    });
+    const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
+    cockpit.position.set(0, 0.5, 2);
+    cockpit.scale.set(1, 0.8, 1.2);
+    heliGroup.add(cockpit);
+    
+    // Tail
+    const tailGeometry = new THREE.BoxGeometry(0.8, 0.8, 4);
+    const tailMaterial = new THREE.MeshStandardMaterial({ color: 0x4a4a4a });
+    const tail = new THREE.Mesh(tailGeometry, tailMaterial);
+    tail.position.set(0, 0.5, -5);
+    tail.castShadow = true;
+    heliGroup.add(tail);
+    
+    // Main rotor
+    const rotorGeometry = new THREE.BoxGeometry(8, 0.2, 0.6);
+    const rotorMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
+    const rotor = new THREE.Mesh(rotorGeometry, rotorMaterial);
+    rotor.position.y = 1.5;
+    rotor.castShadow = true;
+    heliGroup.add(rotor);
+    
+    // Tail rotor
+    const tailRotorGeometry = new THREE.BoxGeometry(0.2, 1.5, 0.2);
+    const tailRotor = new THREE.Mesh(tailRotorGeometry, rotorMaterial);
+    tailRotor.position.set(0.5, 0.5, -7);
+    tailRotor.castShadow = true;
+    heliGroup.add(tailRotor);
+    
+    // Landing skids
+    for (let side = 0; side < 2; side++) {
+        const skidGeometry = new THREE.BoxGeometry(0.3, 0.3, 4);
+        const skidMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
+        const skid = new THREE.Mesh(skidGeometry, skidMaterial);
+        skid.position.set(side === 0 ? -1.5 : 1.5, -1.2, 0);
+        skid.castShadow = true;
+        heliGroup.add(skid);
+    }
+    
+    heliGroup.position.copy(position);
+    heliGroup.rotation.y = rotation;
+    game.scene.add(heliGroup);
+    
+    const vehicle = {
+        type: 'helicopter',
+        mesh: heliGroup,
+        position: position.clone(),
+        rotation: rotation,
+        rotor: rotor,
+        tailRotor: tailRotor,
+        occupied: false,
+        shootPosition: new THREE.Vector3(0, 0, 3)
+    };
+    
+    game.vehicles.push(vehicle);
+}
+
+function createAirplane(position, rotation) {
+    const planeGroup = new THREE.Group();
+    
+    // Fuselage
+    const fuselageGeometry = new THREE.CylinderGeometry(1, 1.2, 8, 8);
+    const fuselageMaterial = new THREE.MeshStandardMaterial({ color: 0x6a7a8a });
+    const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
+    fuselage.rotation.z = Math.PI / 2;
+    fuselage.castShadow = true;
+    planeGroup.add(fuselage);
+    
+    // Nose cone
+    const noseGeometry = new THREE.ConeGeometry(1, 2, 8);
+    const nose = new THREE.Mesh(noseGeometry, fuselageMaterial);
+    nose.position.z = 5;
+    nose.rotation.x = Math.PI / 2;
+    nose.castShadow = true;
+    planeGroup.add(nose);
+    
+    // Cockpit
+    const cockpitGeometry = new THREE.SphereGeometry(1.2, 8, 8);
+    const cockpitMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x87ceeb, 
+        transparent: true, 
+        opacity: 0.5
+    });
+    const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
+    cockpit.position.set(0, 0.5, 2);
+    cockpit.scale.set(1, 0.7, 1.5);
+    planeGroup.add(cockpit);
+    
+    // Main wings
+    const wingGeometry = new THREE.BoxGeometry(12, 0.3, 3);
+    const wingMaterial = new THREE.MeshStandardMaterial({ color: 0x5a6a7a });
+    const wings = new THREE.Mesh(wingGeometry, wingMaterial);
+    wings.position.z = 0;
+    wings.castShadow = true;
+    planeGroup.add(wings);
+    
+    // Tail wings
+    const tailWingGeometry = new THREE.BoxGeometry(4, 0.3, 2);
+    const tailWings = new THREE.Mesh(tailWingGeometry, wingMaterial);
+    tailWings.position.z = -3.5;
+    tailWings.castShadow = true;
+    planeGroup.add(tailWings);
+    
+    // Vertical stabilizer
+    const stabilizerGeometry = new THREE.BoxGeometry(0.3, 2, 2);
+    const stabilizer = new THREE.Mesh(stabilizerGeometry, wingMaterial);
+    stabilizer.position.set(0, 1.5, -3.5);
+    stabilizer.castShadow = true;
+    planeGroup.add(stabilizer);
+    
+    // Propeller
+    const propellerGeometry = new THREE.BoxGeometry(3, 0.2, 0.5);
+    const propellerMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
+    const propeller = new THREE.Mesh(propellerGeometry, propellerMaterial);
+    propeller.position.z = 6;
+    propeller.castShadow = true;
+    planeGroup.add(propeller);
+    
+    planeGroup.position.copy(position);
+    planeGroup.rotation.y = rotation;
+    game.scene.add(planeGroup);
+    
+    const vehicle = {
+        type: 'airplane',
+        mesh: planeGroup,
+        position: position.clone(),
+        rotation: rotation,
+        propeller: propeller,
+        occupied: false,
+        shootPosition: new THREE.Vector3(0, 0, 4)
+    };
+    
+    game.vehicles.push(vehicle);
 }
 
 function spawnPickups() {
@@ -451,6 +812,11 @@ function setupControls() {
     // Keyboard controls
     document.addEventListener('keydown', (e) => {
         game.keys[e.key.toLowerCase()] = true;
+        
+        // 'E' key to enter/exit vehicles
+        if (e.key.toLowerCase() === 'e' && game.gameStarted) {
+            toggleVehicle();
+        }
     });
     
     document.addEventListener('keyup', (e) => {
@@ -488,8 +854,43 @@ function setupControls() {
     });
 }
 
+function toggleVehicle() {
+    if (player.inVehicle) {
+        // Exit vehicle
+        const vehicle = player.inVehicle;
+        vehicle.occupied = false;
+        player.inVehicle = null;
+        
+        // Position player next to vehicle
+        player.position.set(
+            vehicle.position.x + 5,
+            vehicle.position.y,
+            vehicle.position.z
+        );
+        player.mesh.visible = true;
+    } else {
+        // Try to enter nearby vehicle
+        for (let vehicle of game.vehicles) {
+            const distance = player.position.distanceTo(vehicle.position);
+            if (distance < 8 && !vehicle.occupied) {
+                vehicle.occupied = true;
+                player.inVehicle = vehicle;
+                player.vehicleRotation = vehicle.rotation;
+                player.mesh.visible = false;
+                break;
+            }
+        }
+    }
+}
+
 function updatePlayer(deltaTime) {
     if (!player.mesh) return;
+    
+    // Check if player is in a vehicle
+    if (player.inVehicle) {
+        updateVehicleMovement(deltaTime);
+        return;
+    }
     
     // Apply gravity
     if (!player.isGrounded) {
@@ -566,6 +967,69 @@ function updatePlayer(deltaTime) {
     game.camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 1, 0)));
 }
 
+function updateVehicleMovement(deltaTime) {
+    const vehicle = player.inVehicle;
+    if (!vehicle) return;
+    
+    const moveSpeed = 10 * deltaTime;
+    const turnSpeed = 1.5 * deltaTime;
+    
+    // Rotation controls
+    if (game.keys['a']) {
+        player.vehicleRotation += turnSpeed;
+    }
+    if (game.keys['d']) {
+        player.vehicleRotation -= turnSpeed;
+    }
+    
+    // Movement controls
+    if (game.keys['w']) {
+        vehicle.position.x -= Math.sin(player.vehicleRotation) * moveSpeed;
+        vehicle.position.z -= Math.cos(player.vehicleRotation) * moveSpeed;
+    }
+    if (game.keys['s']) {
+        vehicle.position.x += Math.sin(player.vehicleRotation) * moveSpeed;
+        vehicle.position.z += Math.cos(player.vehicleRotation) * moveSpeed;
+    }
+    
+    // Helicopter/Airplane altitude controls
+    if (vehicle.type === 'helicopter' || vehicle.type === 'airplane') {
+        if (game.keys[' ']) {
+            vehicle.position.y += 5 * deltaTime;
+        }
+        if (game.keys['shift']) {
+            vehicle.position.y -= 5 * deltaTime;
+        }
+        vehicle.position.y = Math.max(2, Math.min(50, vehicle.position.y));
+    }
+    
+    // Update vehicle mesh
+    vehicle.mesh.position.copy(vehicle.position);
+    vehicle.mesh.rotation.y = player.vehicleRotation;
+    
+    // Animate vehicle parts
+    if (vehicle.type === 'helicopter') {
+        vehicle.rotor.rotation.y += 20 * deltaTime;
+        vehicle.tailRotor.rotation.x += 20 * deltaTime;
+    } else if (vehicle.type === 'airplane') {
+        vehicle.propeller.rotation.y += 30 * deltaTime;
+    }
+    
+    // Update player position to match vehicle
+    player.position.copy(vehicle.position);
+    
+    // Update camera for vehicle view
+    const cameraDistance = 15;
+    const cameraHeight = 5;
+    const cameraOffset = new THREE.Vector3(
+        Math.sin(player.vehicleRotation) * cameraDistance,
+        cameraHeight,
+        Math.cos(player.vehicleRotation) * cameraDistance
+    );
+    game.camera.position.copy(vehicle.position).add(cameraOffset);
+    game.camera.lookAt(vehicle.position.clone().add(new THREE.Vector3(0, 0, 0)));
+}
+
 function checkGroundCollision() {
     player.isGrounded = false;
     
@@ -611,13 +1075,31 @@ function shoot() {
         const spreadX = (Math.random() - 0.5) * spread;
         const spreadY = (Math.random() - 0.5) * spread;
         
-        const direction = new THREE.Vector3(
-            -Math.sin(game.mouseMovement.x + spreadX),
-            -Math.tan(game.mouseMovement.y + spreadY),
-            -Math.cos(game.mouseMovement.x + spreadX)
-        ).normalize();
+        let direction, startPosition;
         
-        const startPosition = player.position.clone().add(new THREE.Vector3(0, 1, 0));
+        if (player.inVehicle) {
+            // Shooting from vehicle
+            const vehicle = player.inVehicle;
+            direction = new THREE.Vector3(
+                -Math.sin(player.vehicleRotation + spreadX),
+                -Math.tan(game.mouseMovement.y + spreadY),
+                -Math.cos(player.vehicleRotation + spreadX)
+            ).normalize();
+            
+            // Use vehicle's shoot position
+            const shootOffset = vehicle.shootPosition.clone();
+            shootOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.vehicleRotation);
+            startPosition = vehicle.position.clone().add(shootOffset);
+        } else {
+            // Normal shooting
+            direction = new THREE.Vector3(
+                -Math.sin(game.mouseMovement.x + spreadX),
+                -Math.tan(game.mouseMovement.y + spreadY),
+                -Math.cos(game.mouseMovement.x + spreadX)
+            ).normalize();
+            
+            startPosition = player.position.clone().add(new THREE.Vector3(0, 1, 0));
+        }
         
         createProjectile(startPosition, direction, weaponConfig, player, false);
     }
