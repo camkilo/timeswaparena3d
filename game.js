@@ -330,14 +330,15 @@ function createBuildings() {
 }
 
 function create10StoryBuilding(baseX, baseZ, width, depth, buildingIndex) {
-    const floorHeight = 3;
-    const numFloors = 10;
-    const wallThickness = 0.3;
-    const windowSize = 1.2;
+    const FLOOR_HEIGHT = 3;
+    const NUM_FLOORS = 10;
+    const WALL_THICKNESS = 0.3;
+    const WINDOW_SIZE = 1.2;
+    const WINDOW_SPACING = 3;
     
     // Building exterior walls
-    for (let floor = 0; floor < numFloors; floor++) {
-        const floorY = floor * floorHeight;
+    for (let floor = 0; floor < NUM_FLOORS; floor++) {
+        const floorY = floor * FLOOR_HEIGHT;
         
         // Create floor platform
         const floorGeometry = new THREE.BoxGeometry(width, 0.3, depth);
@@ -350,27 +351,26 @@ function create10StoryBuilding(baseX, baseZ, width, depth, buildingIndex) {
         game.platforms.push({ mesh: floorMesh, height: floorY + 0.3 });
         
         // Create walls with windows
-        createWallsWithWindows(baseX, baseZ, floorY, width, depth, floorHeight, wallThickness, windowSize);
+        createWallsWithWindows(baseX, baseZ, floorY, width, depth, FLOOR_HEIGHT, WALL_THICKNESS, WINDOW_SIZE, WINDOW_SPACING);
     }
     
     // Add stairs/ramps connecting floors
-    for (let floor = 0; floor < numFloors - 1; floor++) {
-        createStaircase(baseX, baseZ, floor * floorHeight, floorHeight, width, depth);
+    for (let floor = 0; floor < NUM_FLOORS - 1; floor++) {
+        createStaircase(baseX, baseZ, floor * FLOOR_HEIGHT, FLOOR_HEIGHT, width, depth);
     }
     
     // Rooftop
     const roofGeometry = new THREE.BoxGeometry(width + 1, 0.5, depth + 1);
     const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
     const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-    roof.position.set(baseX, numFloors * floorHeight + 0.25, baseZ);
+    roof.position.set(baseX, NUM_FLOORS * FLOOR_HEIGHT + 0.25, baseZ);
     roof.castShadow = true;
     roof.receiveShadow = true;
     game.scene.add(roof);
-    game.platforms.push({ mesh: roof, height: numFloors * floorHeight + 0.5 });
+    game.platforms.push({ mesh: roof, height: NUM_FLOORS * FLOOR_HEIGHT + 0.5 });
 }
 
-function createWallsWithWindows(x, z, y, width, depth, height, wallThickness, windowSize) {
-    const windowSpacing = 3;
+function createWallsWithWindows(x, z, y, width, depth, height, wallThickness, windowSize, windowSpacing) {
     const windowY = y + height / 2;
     
     // North and South walls
@@ -811,16 +811,26 @@ function createPickup(position, type, weapon = null, powerup = null) {
 function setupControls() {
     // Keyboard controls
     document.addEventListener('keydown', (e) => {
-        game.keys[e.key.toLowerCase()] = true;
+        const key = e.key.toLowerCase();
+        game.keys[key] = true;
+        
+        // Also handle special keys by code
+        if (e.code === 'Space') game.keys['space'] = true;
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') game.keys['shift'] = true;
         
         // 'E' key to enter/exit vehicles
-        if (e.key.toLowerCase() === 'e' && game.gameStarted) {
+        if (key === 'e' && game.gameStarted) {
             toggleVehicle();
         }
     });
     
     document.addEventListener('keyup', (e) => {
-        game.keys[e.key.toLowerCase()] = false;
+        const key = e.key.toLowerCase();
+        game.keys[key] = false;
+        
+        // Also handle special keys by code
+        if (e.code === 'Space') game.keys['space'] = false;
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') game.keys['shift'] = false;
     });
     
     // Mouse controls
@@ -928,7 +938,7 @@ function updatePlayer(deltaTime) {
     }
     
     // Jump
-    if (game.keys[' '] && player.isGrounded) {
+    if ((game.keys[' '] || game.keys['space']) && player.isGrounded) {
         player.velocity.y = player.jumpForce;
         player.isGrounded = false;
     }
@@ -994,7 +1004,7 @@ function updateVehicleMovement(deltaTime) {
     
     // Helicopter/Airplane altitude controls
     if (vehicle.type === 'helicopter' || vehicle.type === 'airplane') {
-        if (game.keys[' ']) {
+        if (game.keys[' '] || game.keys['space']) {
             vehicle.position.y += 5 * deltaTime;
         }
         if (game.keys['shift']) {
