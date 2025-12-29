@@ -19,10 +19,12 @@ const game = {
     pickupSpawnInterval: 15, // Spawn pickups every 15 seconds
     lastRecordingTime: 0,
     lastPickupSpawn: 0,
+    lastGhostSpawn: 0,
     recordings: [],
     currentRecording: [],
     gameStarted: false,
-    pointerLocked: false
+    pointerLocked: false,
+    gameOver: false
 };
 
 // Player data
@@ -534,11 +536,47 @@ function damagePlayer(damage) {
     player.health = Math.max(0, player.health - damage);
     updateHUD();
     
-    if (player.health <= 0) {
-        // Game over
-        alert('Game Over! Your ghost got you!');
-        location.reload();
+    if (player.health <= 0 && !game.gameOver) {
+        game.gameOver = true;
+        showGameOver();
     }
+}
+
+function showGameOver() {
+    const gameOverDiv = document.createElement('div');
+    gameOverDiv.id = 'gameOver';
+    gameOverDiv.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 40px;
+        border-radius: 10px;
+        text-align: center;
+        z-index: 300;
+    `;
+    gameOverDiv.innerHTML = `
+        <h2 style="margin-top: 0; color: #ff0000;">Game Over!</h2>
+        <p>Your ghost got you!</p>
+        <p>Survived: ${Math.floor(game.time)} seconds</p>
+        <button id="restartButton" style="
+            margin-top: 20px;
+            padding: 10px 30px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        ">Restart</button>
+    `;
+    document.body.appendChild(gameOverDiv);
+    
+    document.getElementById('restartButton').addEventListener('click', () => {
+        location.reload();
+    });
 }
 
 function checkPickupCollision() {
@@ -736,8 +774,9 @@ function updateRecording() {
     if (game.time >= game.ghostSpawnTime && game.recordings.length > 0) {
         const recordingIndex = Math.floor((game.time - game.ghostSpawnTime) / game.recordingInterval);
         if (recordingIndex < game.recordings.length && 
-            game.time % game.recordingInterval < 0.1) {
+            game.time - game.lastGhostSpawn >= game.recordingInterval) {
             createGhost(game.recordings[recordingIndex]);
+            game.lastGhostSpawn = game.time;
         }
     }
 }
@@ -774,7 +813,7 @@ function animate() {
     const deltaTime = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
     
-    if (game.gameStarted) {
+    if (game.gameStarted && !game.gameOver) {
         game.time += deltaTime;
         
         updatePlayer(deltaTime);
