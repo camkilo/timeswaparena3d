@@ -1336,16 +1336,9 @@ function damageBuildingPart(part, damage) {
     const healthPercent = part.health / part.maxHealth;
     const material = part.mesh.material;
     
-    if (healthPercent > 0.7) {
-        // Slight damage - slightly darker
-        material.color.setHex(part.type === 'window' ? 0x77bedb : (part.type === 'wall' ? 0x606060 : 0x7b6345));
-    } else if (healthPercent > 0.4) {
-        // Moderate damage - more visible cracks/darkness
-        material.color.setHex(part.type === 'window' ? 0x67aecb : (part.type === 'wall' ? 0x505050 : 0x6b5335));
-    } else if (healthPercent > 0) {
-        // Heavy damage - very dark, about to collapse
-        material.color.setHex(part.type === 'window' ? 0x579ebb : (part.type === 'wall' ? 0x404040 : 0x5b4325));
-    }
+    // Get damage color based on part type and health percentage
+    const damageColor = getDamageColor(part.type, healthPercent);
+    material.color.setHex(damageColor);
     
     // Check if part should be destroyed
     if (part.health <= 0) {
@@ -1353,9 +1346,53 @@ function damageBuildingPart(part, damage) {
     }
 }
 
+function getDamageColor(partType, healthPercent) {
+    // Define color progression for each part type
+    const colors = {
+        'window': {
+            slight: 0x77bedb,    // Slightly darker blue
+            moderate: 0x67aecb,   // Moderate damage blue
+            heavy: 0x579ebb       // Heavy damage blue
+        },
+        'wall': {
+            slight: 0x606060,     // Slightly darker gray
+            moderate: 0x505050,   // Moderate damage gray
+            heavy: 0x404040       // Heavy damage gray
+        },
+        'doorframe': {
+            slight: 0x454545,     // Slightly darker
+            moderate: 0x353535,   // Moderate damage
+            heavy: 0x252525       // Heavy damage
+        },
+        'default': {
+            slight: 0x7b6345,     // Slightly darker brown (floors/roofs)
+            moderate: 0x6b5335,   // Moderate damage brown
+            heavy: 0x5b4325       // Heavy damage brown
+        }
+    };
+    
+    const partColors = colors[partType] || colors['default'];
+    
+    if (healthPercent > 0.7) {
+        return partColors.slight;
+    } else if (healthPercent > 0.4) {
+        return partColors.moderate;
+    } else {
+        return partColors.heavy;
+    }
+}
+
 function destroyBuildingPart(part) {
     // Create debris/collapse effect
     createDebris(part.mesh.position.clone(), part.type);
+    
+    // Remove from platforms if it was a floor (before nulling the mesh)
+    if (part.type === 'floor' || part.type === 'roof') {
+        const platformIndex = game.platforms.findIndex(p => p.mesh === part.mesh);
+        if (platformIndex >= 0) {
+            game.platforms.splice(platformIndex, 1);
+        }
+    }
     
     // Remove the mesh from scene
     game.scene.remove(part.mesh);
@@ -1363,14 +1400,6 @@ function destroyBuildingPart(part) {
     // Mark as destroyed
     part.mesh = null;
     part.health = 0;
-    
-    // Remove from platforms if it was a floor
-    if (part.type === 'floor' || part.type === 'roof') {
-        const platformIndex = game.platforms.findIndex(p => p.mesh === part.mesh);
-        if (platformIndex >= 0) {
-            game.platforms.splice(platformIndex, 1);
-        }
-    }
 }
 
 function createDebris(position, partType) {
