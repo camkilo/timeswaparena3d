@@ -207,7 +207,7 @@ function createArena() {
     // Arena walls - taller to accommodate skyscraper
     const wallHeight = 40;
     const wallThickness = 1;
-    const arenaSize = 55;
+    const arenaSize = 60; // Half of 120x120 ground size
     
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x999999 });
     
@@ -309,28 +309,28 @@ function createSkyscraper() {
 function createBuildings() {
     // Create several building structures around the arena
     const buildings = [
-        // North-west building complex
-        { x: -30, z: -30, w: 12, h: 15, d: 12, color: 0x666666 },
-        { x: -30, z: -30, w: 10, h: 20, d: 10, color: 0x777777, offset: 1 },
+        // North-west building complex (stacked buildings)
+        { x: -30, z: -30, w: 12, h: 15, d: 12, color: 0x666666, offset: 0 },
+        { x: -30, z: -30, w: 10, h: 20, d: 10, color: 0x777777, offset: 1 }, // Elevated on top
         
         // North-east structure
-        { x: 30, z: -30, w: 15, h: 12, d: 10, color: 0x6a6a6a },
+        { x: 30, z: -30, w: 15, h: 12, d: 10, color: 0x6a6a6a, offset: 0 },
         
         // South-west building
-        { x: -30, z: 30, w: 10, h: 18, d: 15, color: 0x707070 },
+        { x: -30, z: 30, w: 10, h: 18, d: 15, color: 0x707070, offset: 0 },
         
         // South-east tower
-        { x: 35, z: 35, w: 8, h: 22, d: 8, color: 0x656565 },
+        { x: 35, z: 35, w: 8, h: 22, d: 8, color: 0x656565, offset: 0 },
         
         // Additional mid-sized buildings
-        { x: -15, z: -35, w: 8, h: 10, d: 8, color: 0x6f6f6f },
-        { x: 15, z: -35, w: 8, h: 12, d: 8, color: 0x696969 },
-        { x: -35, z: 10, w: 10, h: 14, d: 8, color: 0x6d6d6d },
-        { x: 35, z: -10, w: 8, h: 11, d: 10, color: 0x717171 }
+        { x: -15, z: -35, w: 8, h: 10, d: 8, color: 0x6f6f6f, offset: 0 },
+        { x: 15, z: -35, w: 8, h: 12, d: 8, color: 0x696969, offset: 0 },
+        { x: -35, z: 10, w: 10, h: 14, d: 8, color: 0x6d6d6d, offset: 0 },
+        { x: 35, z: -10, w: 8, h: 11, d: 10, color: 0x717171, offset: 0 }
     ];
     
     buildings.forEach(building => {
-        const offset = building.offset || 0;
+        const offset = building.offset; // offset is now explicitly defined for all buildings
         const geometry = new THREE.BoxGeometry(building.w, building.h, building.d);
         const material = new THREE.MeshStandardMaterial({ color: building.color });
         const mesh = new THREE.Mesh(geometry, material);
@@ -544,8 +544,8 @@ function updatePlayer(deltaTime) {
     // Ground collision
     checkGroundCollision();
     
-    // Boundary collision
-    const boundary = 53;
+    // Boundary collision - slightly less than arenaSize to keep player inside walls
+    const boundary = 58; // arenaSize (60) minus player width/2 and wall thickness
     player.position.x = Math.max(-boundary, Math.min(boundary, player.position.x));
     player.position.z = Math.max(-boundary, Math.min(boundary, player.position.z));
     
