@@ -2071,9 +2071,12 @@ function updateBuildMode() {
     
     if (intersects.length > 0) {
         const point = intersects[0].point;
+        const heightOffset = game.selectedBlueprint.size ? 
+            game.selectedBlueprint.size.height / 2 : 1;
+        
         game.buildPreview.position.set(
             Math.round(point.x),
-            point.y + game.buildPreview.geometry.parameters.height / 2,
+            point.y + heightOffset,
             Math.round(point.z)
         );
         
@@ -2085,7 +2088,7 @@ function updateBuildMode() {
     } else {
         // Place in front of player if no intersection
         game.buildPreview.position.copy(player.position);
-        game.buildPreview.position.add(forward.multiplyScalar(5));
+        game.buildPreview.position.add(forward.clone().multiplyScalar(5));
         game.buildPreview.position.y = player.position.y;
     }
 }
