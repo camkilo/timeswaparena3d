@@ -91,6 +91,93 @@
         #instructions button:hover {
             background: #45a049;
         }
+        
+        #inventory {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 100;
+        }
+        
+        #inventory h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        #buildMenu {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            min-width: 600px;
+            z-index: 150;
+        }
+        
+        #buildMenu h3 {
+            margin-top: 0;
+            text-align: center;
+        }
+        
+        #blueprintList {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .blueprint-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        .blueprint-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .blueprint-item.selected {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.3);
+        }
+        
+        .blueprint-item.cannot-afford {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .blueprint-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .blueprint-cost {
+            font-size: 12px;
+            color: #aaa;
+        }
+        
+        #buildInstructions {
+            text-align: center;
+            font-size: 12px;
+            color: #ccc;
+        }
+        
+        #buildInstructions p {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
@@ -115,6 +202,10 @@
         <br>
         <p><strong>Buildings:</strong></p>
         <p>10-story buildings with windows and ramps - Explore multiple floors!</p>
+        <p>Destructible buildings - Collect materials when you destroy them!</p>
+        <br>
+        <p><strong>Building Mode:</strong></p>
+        <p>B - Toggle Build Mode | 1-7 - Select Blueprint | Left Click - Place</p>
         <br>
         <p>Every 10 seconds, your actions are recorded.<br>After 30 seconds, a ghost clone will spawn and replay them!</p>
         <button id="startButton">Start Game</button>
@@ -126,6 +217,28 @@
         <div>Health: <span id="health">100</span></div>
         <div>Weapon: <span id="weapon">Pistol</span></div>
         <div>Ammo: <span id="ammo">∞</span></div>
+        <div>Time: <span id="time">0</span>s</div>
+        <div id="activeEffects"></div>
+    </div>
+    
+    <div id="inventory" style="display: none;">
+        <h3>Inventory</h3>
+        <div>Metal: <span id="metal">0</span></div>
+        <div>Wood: <span id="wood">0</span></div>
+        <div>Glass: <span id="glass">0</span></div>
+        <div>Concrete: <span id="concrete">0</span></div>
+    </div>
+    
+    <div id="buildMenu" style="display: none;">
+        <h3>Build Menu</h3>
+        <div id="blueprintList"></div>
+        <div id="buildInstructions">
+            <p>Select blueprint (1-7)</p>
+            <p>Move mouse to position</p>
+            <p>Click to place</p>
+            <p>B to exit build mode</p>
+        </div>
+    </div>
         <div>Time: <span id="time">0</span>s</div>
         <div id="activeEffects"></div>
     </div>

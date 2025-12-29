@@ -13,6 +13,7 @@ const game = {
     covers: [],
     vehicles: [],
     buildingParts: [], // Track destructible building parts
+    playerStructures: [], // Track player-built structures
     keys: {},
     mouseMovement: { x: 0, y: 0 },
     time: 0,
@@ -26,7 +27,71 @@ const game = {
     currentRecording: [],
     gameStarted: false,
     pointerLocked: false,
-    gameOver: false
+    gameOver: false,
+    buildMode: false, // Toggle building mode
+    buildPreview: null, // Preview object for placement
+    selectedBlueprint: null // Currently selected blueprint
+};
+
+// Player inventory for materials
+const inventory = {
+    metal: 0,
+    wood: 0,
+    glass: 0,
+    concrete: 0
+};
+
+// Building blueprints with costs
+const blueprints = {
+    wall: {
+        name: 'Wall',
+        cost: { concrete: 10 },
+        size: { width: 3, height: 3, depth: 0.3 },
+        color: 0x707070,
+        type: 'structure'
+    },
+    floor: {
+        name: 'Floor Platform',
+        cost: { wood: 15 },
+        size: { width: 5, height: 0.3, depth: 5 },
+        color: 0x8b7355,
+        type: 'structure'
+    },
+    window: {
+        name: 'Window',
+        cost: { glass: 5, metal: 2 },
+        size: { width: 2, height: 2, depth: 0.1 },
+        color: 0x87ceeb,
+        transparent: true,
+        opacity: 0.3,
+        type: 'structure'
+    },
+    ramp: {
+        name: 'Ramp',
+        cost: { wood: 20, metal: 5 },
+        size: { width: 3, height: 0.5, depth: 6 },
+        color: 0x8b7355,
+        rotation: { x: -Math.PI / 6, y: 0, z: 0 },
+        type: 'structure'
+    },
+    tank: {
+        name: 'Combat Tank',
+        cost: { metal: 100, concrete: 50 },
+        type: 'vehicle',
+        vehicleType: 'tank'
+    },
+    helicopter: {
+        name: 'Helicopter',
+        cost: { metal: 150, glass: 30 },
+        type: 'vehicle',
+        vehicleType: 'helicopter'
+    },
+    airplane: {
+        name: 'Airplane',
+        cost: { metal: 200, wood: 50 },
+        type: 'vehicle',
+        vehicleType: 'airplane'
+    }
 };
 
 // Player data
@@ -946,6 +1011,16 @@ function setupControls() {
         if (key === 'e' && game.gameStarted) {
             toggleVehicle();
         }
+        
+        // 'B' key to toggle build mode
+        if (key === 'b' && game.gameStarted && !game.gameOver) {
+            toggleBuildMode();
+        }
+        
+        // Number keys to select blueprints in build mode
+        if (game.buildMode && key >= '1' && key <= '7') {
+            selectBlueprint(parseInt(key) - 1);
+        }
     });
     
     document.addEventListener('keyup', (e) => {
@@ -972,7 +1047,13 @@ function setupControls() {
         if (!game.pointerLocked) {
             document.body.requestPointerLock();
         } else {
-            shoot();
+            if (game.buildMode && game.selectedBlueprint && game.buildPreview) {
+                // Place structure
+                placeStructure();
+            } else if (!game.buildMode) {
+                // Normal shooting
+                shoot();
+            }
         }
     });
     
@@ -1386,6 +1467,9 @@ function destroyBuildingPart(part) {
     // Create debris/collapse effect
     createDebris(part.mesh.position.clone(), part.type);
     
+    // Drop materials based on part type
+    dropMaterials(part.mesh.position.clone(), part.type);
+    
     // Remove from platforms if it was a floor (before nulling the mesh)
     if (part.type === 'floor' || part.type === 'roof') {
         const platformIndex = game.platforms.findIndex(p => p.mesh === part.mesh);
@@ -1400,6 +1484,61 @@ function destroyBuildingPart(part) {
     // Mark as destroyed
     part.mesh = null;
     part.health = 0;
+}
+
+function dropMaterials(position, partType) {
+    // Define material drops based on part type
+    const materialDrops = {
+        'window': { glass: 3, metal: 1 },
+        'wall': { concrete: 5, metal: 2 },
+        'doorframe': { metal: 3, wood: 2 },
+        'floor': { wood: 8, metal: 3 },
+        'roof': { wood: 6, concrete: 4 }
+    };
+    
+    const drops = materialDrops[partType] || { concrete: 2 };
+    
+    // Create visual material pickups
+    for (const [materialType, amount] of Object.entries(drops)) {
+        createMaterialPickup(position, materialType, amount);
+    }
+}
+
+function createMaterialPickup(position, materialType, amount) {
+    // Material colors
+    const materialColors = {
+        metal: 0xc0c0c0,
+        wood: 0x8b4513,
+        glass: 0x87ceeb,
+        concrete: 0x808080
+    };
+    
+    const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const material = new THREE.MeshStandardMaterial({
+        color: materialColors[materialType] || 0xffffff,
+        emissive: materialColors[materialType] || 0xffffff,
+        emissiveIntensity: 0.3
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    
+    // Offset position slightly to avoid exact overlap
+    mesh.position.set(
+        position.x + (Math.random() - 0.5) * 2,
+        position.y + 0.5,
+        position.z + (Math.random() - 0.5) * 2
+    );
+    mesh.castShadow = true;
+    game.scene.add(mesh);
+    
+    const pickup = {
+        mesh: mesh,
+        type: 'material',
+        materialType: materialType,
+        amount: amount,
+        rotation: Math.random() * Math.PI * 2
+    };
+    
+    game.pickups.push(pickup);
 }
 
 function createDebris(position, partType) {
@@ -1534,6 +1673,10 @@ function checkPickupCollision() {
             if (pickup.type === 'weapon') {
                 player.weapon = pickup.weapon;
                 recordAction('pickup', { type: 'weapon', name: pickup.weapon });
+            } else if (pickup.type === 'material') {
+                // Collect material into inventory
+                inventory[pickup.materialType] = (inventory[pickup.materialType] || 0) + pickup.amount;
+                updateInventoryUI();
             } else {
                 activatePowerUp(pickup.powerup);
                 recordAction('pickup', { type: 'powerup', name: pickup.powerup });
@@ -1770,10 +1913,292 @@ function animate() {
         checkPickupCollision();
         updatePowerUps();
         updateRecording();
+        updateBuildMode(); // Update build preview
         updateHUD();
     }
     
     game.renderer.render(game.scene, game.camera);
+}
+
+// Building Mode Functions
+function toggleBuildMode() {
+    game.buildMode = !game.buildMode;
+    
+    const buildMenu = document.getElementById('buildMenu');
+    const inventory = document.getElementById('inventory');
+    
+    if (game.buildMode) {
+        buildMenu.style.display = 'block';
+        inventory.style.display = 'block';
+        initializeBuildMenu();
+    } else {
+        buildMenu.style.display = 'none';
+        inventory.style.display = 'none';
+        if (game.buildPreview) {
+            game.scene.remove(game.buildPreview);
+            game.buildPreview = null;
+        }
+        game.selectedBlueprint = null;
+    }
+}
+
+function initializeBuildMenu() {
+    const blueprintList = document.getElementById('blueprintList');
+    blueprintList.innerHTML = '';
+    
+    const blueprintKeys = Object.keys(blueprints);
+    blueprintKeys.forEach((key, index) => {
+        const blueprint = blueprints[key];
+        const div = document.createElement('div');
+        div.className = 'blueprint-item';
+        div.id = `blueprint-${key}`;
+        
+        // Check if player can afford
+        const canAfford = canAffordBlueprint(blueprint);
+        if (!canAfford) {
+            div.classList.add('cannot-afford');
+        }
+        
+        div.innerHTML = `
+            <div class="blueprint-name">${index + 1}. ${blueprint.name}</div>
+            <div class="blueprint-cost">${formatCost(blueprint.cost)}</div>
+        `;
+        
+        div.addEventListener('click', () => {
+            if (canAfford) {
+                selectBlueprint(index);
+            }
+        });
+        
+        blueprintList.appendChild(div);
+    });
+}
+
+function formatCost(cost) {
+    return Object.entries(cost).map(([mat, amount]) => `${mat}: ${amount}`).join(', ');
+}
+
+function canAffordBlueprint(blueprint) {
+    for (const [material, amount] of Object.entries(blueprint.cost)) {
+        if ((inventory[material] || 0) < amount) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function selectBlueprint(index) {
+    const blueprintKeys = Object.keys(blueprints);
+    if (index >= blueprintKeys.length) return;
+    
+    const key = blueprintKeys[index];
+    const blueprint = blueprints[key];
+    
+    if (!canAffordBlueprint(blueprint)) return;
+    
+    game.selectedBlueprint = { key, ...blueprint };
+    
+    // Update UI
+    document.querySelectorAll('.blueprint-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.getElementById(`blueprint-${key}`).classList.add('selected');
+    
+    // Create preview
+    createBuildPreview();
+}
+
+function createBuildPreview() {
+    // Remove old preview
+    if (game.buildPreview) {
+        game.scene.remove(game.buildPreview);
+    }
+    
+    const blueprint = game.selectedBlueprint;
+    
+    if (blueprint.type === 'vehicle') {
+        // For vehicles, show a simple placeholder
+        const geometry = new THREE.BoxGeometry(4, 2, 6);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.5,
+            wireframe: true
+        });
+        game.buildPreview = new THREE.Mesh(geometry, material);
+    } else {
+        // For structures
+        const size = blueprint.size;
+        const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
+        const material = new THREE.MeshBasicMaterial({
+            color: blueprint.color,
+            transparent: true,
+            opacity: 0.5,
+            wireframe: true
+        });
+        game.buildPreview = new THREE.Mesh(geometry, material);
+        
+        if (blueprint.rotation) {
+            game.buildPreview.rotation.set(
+                blueprint.rotation.x || 0,
+                blueprint.rotation.y || 0,
+                blueprint.rotation.z || 0
+            );
+        }
+    }
+    
+    game.scene.add(game.buildPreview);
+}
+
+function updateBuildMode() {
+    if (!game.buildMode || !game.buildPreview) return;
+    
+    // Raycast to find placement position
+    const raycaster = new THREE.Raycaster();
+    const forward = new THREE.Vector3(
+        -Math.sin(game.mouseMovement.x),
+        -Math.tan(game.mouseMovement.y),
+        -Math.cos(game.mouseMovement.x)
+    ).normalize();
+    
+    raycaster.set(player.position, forward);
+    
+    // Check intersection with ground and platforms
+    const intersects = raycaster.intersectObjects(
+        game.platforms.map(p => p.mesh).filter(m => m),
+        false
+    );
+    
+    if (intersects.length > 0) {
+        const point = intersects[0].point;
+        game.buildPreview.position.set(
+            Math.round(point.x),
+            point.y + game.buildPreview.geometry.parameters.height / 2,
+            Math.round(point.z)
+        );
+        
+        // Check if valid placement (not too far, not colliding)
+        const distance = player.position.distanceTo(game.buildPreview.position);
+        const isValid = distance < 15 && !checkBuildCollision(game.buildPreview);
+        
+        game.buildPreview.material.color.setHex(isValid ? 0x00ff00 : 0xff0000);
+    } else {
+        // Place in front of player if no intersection
+        game.buildPreview.position.copy(player.position);
+        game.buildPreview.position.add(forward.multiplyScalar(5));
+        game.buildPreview.position.y = player.position.y;
+    }
+}
+
+function checkBuildCollision(previewMesh) {
+    const previewBox = new THREE.Box3().setFromObject(previewMesh);
+    
+    // Check collision with existing structures
+    for (const structure of game.playerStructures) {
+        if (!structure.mesh) continue;
+        const structureBox = new THREE.Box3().setFromObject(structure.mesh);
+        if (previewBox.intersectsBox(structureBox)) {
+            return true;
+        }
+    }
+    
+    // Check collision with buildings
+    for (const part of game.buildingParts) {
+        if (!part.mesh) continue;
+        const partBox = new THREE.Box3().setFromObject(part.mesh);
+        if (previewBox.intersectsBox(partBox)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+function placeStructure() {
+    const blueprint = game.selectedBlueprint;
+    
+    // Check if can afford
+    if (!canAffordBlueprint(blueprint)) {
+        return;
+    }
+    
+    // Check valid placement
+    const distance = player.position.distanceTo(game.buildPreview.position);
+    if (distance >= 15 || checkBuildCollision(game.buildPreview)) {
+        return;
+    }
+    
+    // Deduct materials
+    for (const [material, amount] of Object.entries(blueprint.cost)) {
+        inventory[material] -= amount;
+    }
+    
+    if (blueprint.type === 'vehicle') {
+        // Create actual vehicle
+        const position = game.buildPreview.position.clone();
+        const rotation = 0;
+        
+        if (blueprint.vehicleType === 'tank') {
+            createTank(position, rotation);
+        } else if (blueprint.vehicleType === 'helicopter') {
+            createHelicopter(position, rotation);
+        } else if (blueprint.vehicleType === 'airplane') {
+            createAirplane(position, rotation);
+        }
+    } else {
+        // Create actual structure
+        const geometry = new THREE.BoxGeometry(
+            blueprint.size.width,
+            blueprint.size.height,
+            blueprint.size.depth
+        );
+        const material = new THREE.MeshStandardMaterial({
+            color: blueprint.color,
+            transparent: blueprint.transparent || false,
+            opacity: blueprint.opacity || 1
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.copy(game.buildPreview.position);
+        
+        if (blueprint.rotation) {
+            mesh.rotation.set(
+                blueprint.rotation.x || 0,
+                blueprint.rotation.y || 0,
+                blueprint.rotation.z || 0
+            );
+        }
+        
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        game.scene.add(mesh);
+        
+        const structure = {
+            mesh: mesh,
+            type: blueprint.key,
+            health: 100,
+            maxHealth: 100
+        };
+        
+        game.playerStructures.push(structure);
+        
+        // Add as platform if it's a floor
+        if (blueprint.key === 'floor') {
+            game.platforms.push({
+                mesh: mesh,
+                height: mesh.position.y + blueprint.size.height / 2
+            });
+        }
+    }
+    
+    updateInventoryUI();
+    initializeBuildMenu(); // Refresh to update affordability
+}
+
+function updateInventoryUI() {
+    document.getElementById('metal').textContent = inventory.metal;
+    document.getElementById('wood').textContent = inventory.wood;
+    document.getElementById('glass').textContent = inventory.glass;
+    document.getElementById('concrete').textContent = inventory.concrete;
 }
 
 // Initialize game when page loads
