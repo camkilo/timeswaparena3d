@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimesWapArena3D</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 16px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+        
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: white;
+            box-shadow: 0 0 4px rgba(0,0,0,0.8);
+        }
+        
+        #crosshair::before {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        #crosshair::after {
+            width: 100%;
+            height: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        #instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 200;
+        }
+        
+        #instructions h2 {
+            margin-top: 0;
+        }
+        
+        #instructions button {
+            margin-top: 20px;
+            padding: 10px 30px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        #instructions button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        <h2>TimesWapArena3D</h2>
+        <p><strong>Controls:</strong></p>
+        <p>WASD - Move</p>
+        <p>Mouse - Look around</p>
+        <p>Left Click - Shoot</p>
+        <p>Space - Jump</p>
+        <br>
+        <p><strong>Weapons:</strong></p>
+        <p>Blue - Pistol | Red - Shotgun | Green - Rifle</p>
+        <br>
+        <p><strong>Power-ups:</strong></p>
+        <p>Yellow - Speed Boost | Purple - Shield | Orange - Damage Boost</p>
+        <br>
+        <p>Every 10 seconds, your actions are recorded.<br>After 30 seconds, a ghost clone will spawn and replay them!</p>
+        <button id="startButton">Start Game</button>
+    </div>
+    
+    <div id="crosshair"></div>
+    
+    <div id="hud">
+        <div>Health: <span id="health">100</span></div>
+        <div>Weapon: <span id="weapon">Pistol</span></div>
+        <div>Ammo: <span id="ammo">∞</span></div>
+        <div>Time: <span id="time">0</span>s</div>
+        <div id="activeEffects"></div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
