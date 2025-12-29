@@ -65,7 +65,7 @@ function init() {
     // Create scene
     game.scene = new THREE.Scene();
     game.scene.background = new THREE.Color(0x87CEEB);
-    game.scene.fog = new THREE.Fog(0x87CEEB, 50, 150);
+    game.scene.fog = new THREE.Fog(0x87CEEB, 60, 200);
     
     // Create camera (third-person)
     game.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -83,12 +83,12 @@ function init() {
     game.scene.add(ambientLight);
     
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(20, 40, 20);
+    directionalLight.position.set(30, 60, 30);
     directionalLight.castShadow = true;
-    directionalLight.shadow.camera.left = -50;
-    directionalLight.shadow.camera.right = 50;
-    directionalLight.shadow.camera.top = 50;
-    directionalLight.shadow.camera.bottom = -50;
+    directionalLight.shadow.camera.left = -80;
+    directionalLight.shadow.camera.right = 80;
+    directionalLight.shadow.camera.top = 80;
+    directionalLight.shadow.camera.bottom = -80;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
     game.scene.add(directionalLight);
@@ -114,7 +114,7 @@ function init() {
 
 function createArena() {
     // Ground
-    const groundGeometry = new THREE.PlaneGeometry(100, 100);
+    const groundGeometry = new THREE.PlaneGeometry(120, 120);
     const groundMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x4a7c59,
         roughness: 0.8
@@ -125,13 +125,43 @@ function createArena() {
     game.scene.add(ground);
     game.platforms.push({ mesh: ground, height: 0 });
     
-    // Create platforms
+    // Create SKYSCRAPER - Central landmark
+    createSkyscraper();
+    
+    // Create multiple building structures
+    createBuildings();
+    
+    // Create multi-level platforms
     const platformPositions = [
-        { x: -15, y: 2, z: -15, w: 8, h: 1, d: 8 },
-        { x: 15, y: 3, z: -15, w: 8, h: 1, d: 8 },
-        { x: -15, y: 2, z: 15, w: 8, h: 1, d: 8 },
-        { x: 15, y: 4, z: 15, w: 8, h: 1, d: 8 },
-        { x: 0, y: 5, z: 0, w: 10, h: 1, d: 10 }
+        // Low-level platforms around perimeter
+        { x: -25, y: 2, z: -25, w: 10, h: 1, d: 10 },
+        { x: 25, y: 2, z: -25, w: 10, h: 1, d: 10 },
+        { x: -25, y: 2, z: 25, w: 10, h: 1, d: 10 },
+        { x: 25, y: 2, z: 25, w: 10, h: 1, d: 10 },
+        
+        // Mid-level platforms
+        { x: -15, y: 5, z: -15, w: 8, h: 1, d: 8 },
+        { x: 15, y: 6, z: -15, w: 8, h: 1, d: 8 },
+        { x: -15, y: 5, z: 15, w: 8, h: 1, d: 8 },
+        { x: 15, y: 7, z: 15, w: 8, h: 1, d: 8 },
+        
+        // High-level platforms
+        { x: 0, y: 10, z: -30, w: 12, h: 1, d: 8 },
+        { x: 0, y: 10, z: 30, w: 12, h: 1, d: 8 },
+        { x: -30, y: 9, z: 0, w: 8, h: 1, d: 12 },
+        { x: 30, y: 9, z: 0, w: 8, h: 1, d: 12 },
+        
+        // Elevated bridges
+        { x: 0, y: 8, z: -15, w: 15, h: 0.5, d: 3 },
+        { x: 0, y: 8, z: 15, w: 15, h: 0.5, d: 3 },
+        { x: -15, y: 8, z: 0, w: 3, h: 0.5, d: 15 },
+        { x: 15, y: 8, z: 0, w: 3, h: 0.5, d: 15 },
+        
+        // Upper-tier small platforms
+        { x: -10, y: 12, z: -10, w: 5, h: 1, d: 5 },
+        { x: 10, y: 13, z: -10, w: 5, h: 1, d: 5 },
+        { x: -10, y: 12, z: 10, w: 5, h: 1, d: 5 },
+        { x: 10, y: 14, z: 10, w: 5, h: 1, d: 5 }
     ];
     
     platformPositions.forEach(pos => {
@@ -145,29 +175,39 @@ function createArena() {
         game.platforms.push({ mesh: platform, height: pos.y + pos.h / 2 });
     });
     
-    // Create cover objects
+    // Create varied cover objects at different heights
     const coverPositions = [
-        { x: -5, z: -5 }, { x: 5, z: -5 },
-        { x: -5, z: 5 }, { x: 5, z: 5 },
-        { x: -20, z: 0 }, { x: 20, z: 0 },
-        { x: 0, z: -20 }, { x: 0, z: 20 }
+        // Ground level
+        { x: -5, z: -5, h: 3 }, { x: 5, z: -5, h: 3 },
+        { x: -5, z: 5, h: 3 }, { x: 5, z: 5, h: 3 },
+        { x: -20, z: 0, h: 4 }, { x: 20, z: 0, h: 4 },
+        { x: 0, z: -20, h: 4 }, { x: 0, z: 20, h: 4 },
+        
+        // Mid-level obstacles
+        { x: -12, z: -20, h: 2.5 }, { x: 12, z: -20, h: 2.5 },
+        { x: -12, z: 20, h: 2.5 }, { x: 12, z: 20, h: 2.5 },
+        
+        // Perimeter cover
+        { x: -35, z: -15, h: 3.5 }, { x: 35, z: -15, h: 3.5 },
+        { x: -35, z: 15, h: 3.5 }, { x: 35, z: 15, h: 3.5 }
     ];
     
     coverPositions.forEach(pos => {
-        const geometry = new THREE.BoxGeometry(2, 3, 2);
+        const height = pos.h || 3;
+        const geometry = new THREE.BoxGeometry(2, height, 2);
         const material = new THREE.MeshStandardMaterial({ color: 0x666666 });
         const cover = new THREE.Mesh(geometry, material);
-        cover.position.set(pos.x, 1.5, pos.z);
+        cover.position.set(pos.x, height / 2, pos.z);
         cover.castShadow = true;
         cover.receiveShadow = true;
         game.scene.add(cover);
         game.covers.push(cover);
     });
     
-    // Arena walls
-    const wallHeight = 10;
+    // Arena walls - taller to accommodate skyscraper
+    const wallHeight = 40;
     const wallThickness = 1;
-    const arenaSize = 50;
+    const arenaSize = 55;
     
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x999999 });
     
@@ -208,6 +248,110 @@ function createArena() {
     game.scene.add(westWall);
 }
 
+function createSkyscraper() {
+    // Multi-level skyscraper in center-right area
+    const baseX = 20, baseZ = 0;
+    
+    // Base/Foundation
+    const baseGeometry = new THREE.BoxGeometry(10, 2, 10);
+    const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.set(baseX, 1, baseZ);
+    base.castShadow = true;
+    base.receiveShadow = true;
+    game.scene.add(base);
+    game.platforms.push({ mesh: base, height: 2 });
+    
+    // Tower levels - each progressively smaller
+    const levels = [
+        { y: 4, size: 9, height: 4, color: 0x666666 },
+        { y: 8, size: 8, height: 4, color: 0x707070 },
+        { y: 12, size: 7, height: 4, color: 0x666666 },
+        { y: 16, size: 6, height: 4, color: 0x707070 },
+        { y: 20, size: 5, height: 5, color: 0x666666 },
+        { y: 25, size: 4, height: 5, color: 0x707070 },
+        { y: 30, size: 3, height: 3, color: 0x888888 }
+    ];
+    
+    levels.forEach(level => {
+        const geometry = new THREE.BoxGeometry(level.size, level.height, level.size);
+        const material = new THREE.MeshStandardMaterial({ color: level.color });
+        const floor = new THREE.Mesh(geometry, material);
+        floor.position.set(baseX, level.y, baseZ);
+        floor.castShadow = true;
+        floor.receiveShadow = true;
+        game.scene.add(floor);
+        game.platforms.push({ mesh: floor, height: level.y + level.height / 2 });
+        
+        // Add landing platforms on some levels
+        if (level.y === 8 || level.y === 16 || level.y === 25) {
+            const platformSize = level.size + 3;
+            const platformGeometry = new THREE.BoxGeometry(platformSize, 0.5, platformSize);
+            const platformMaterial = new THREE.MeshStandardMaterial({ color: 0x8b7355 });
+            const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+            platform.position.set(baseX, level.y + level.height / 2 + 0.25, baseZ);
+            platform.castShadow = true;
+            platform.receiveShadow = true;
+            game.scene.add(platform);
+            game.platforms.push({ mesh: platform, height: level.y + level.height / 2 + 0.5 });
+        }
+    });
+    
+    // Top spire
+    const spireGeometry = new THREE.ConeGeometry(1.5, 4, 4);
+    const spireMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+    const spire = new THREE.Mesh(spireGeometry, spireMaterial);
+    spire.position.set(baseX, 35, baseZ);
+    spire.castShadow = true;
+    game.scene.add(spire);
+}
+
+function createBuildings() {
+    // Create several building structures around the arena
+    const buildings = [
+        // North-west building complex
+        { x: -30, z: -30, w: 12, h: 15, d: 12, color: 0x666666 },
+        { x: -30, z: -30, w: 10, h: 20, d: 10, color: 0x777777, offset: 1 },
+        
+        // North-east structure
+        { x: 30, z: -30, w: 15, h: 12, d: 10, color: 0x6a6a6a },
+        
+        // South-west building
+        { x: -30, z: 30, w: 10, h: 18, d: 15, color: 0x707070 },
+        
+        // South-east tower
+        { x: 35, z: 35, w: 8, h: 22, d: 8, color: 0x656565 },
+        
+        // Additional mid-sized buildings
+        { x: -15, z: -35, w: 8, h: 10, d: 8, color: 0x6f6f6f },
+        { x: 15, z: -35, w: 8, h: 12, d: 8, color: 0x696969 },
+        { x: -35, z: 10, w: 10, h: 14, d: 8, color: 0x6d6d6d },
+        { x: 35, z: -10, w: 8, h: 11, d: 10, color: 0x717171 }
+    ];
+    
+    buildings.forEach(building => {
+        const offset = building.offset || 0;
+        const geometry = new THREE.BoxGeometry(building.w, building.h, building.d);
+        const material = new THREE.MeshStandardMaterial({ color: building.color });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(building.x, building.h / 2 + offset, building.z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        game.scene.add(mesh);
+        game.platforms.push({ mesh: mesh, height: building.h + offset });
+        
+        // Add rooftop platforms for gameplay
+        const roofGeometry = new THREE.BoxGeometry(building.w + 1, 0.5, building.d + 1);
+        const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x8b7355 });
+        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+        roof.position.set(building.x, building.h + offset + 0.25, building.z);
+        roof.castShadow = true;
+        roof.receiveShadow = true;
+        game.scene.add(roof);
+        game.platforms.push({ mesh: roof, height: building.h + offset + 0.5 });
+    });
+}
+
 function createPlayer() {
     // Player body
     const geometry = new THREE.BoxGeometry(1, 2, 1);
@@ -221,17 +365,40 @@ function createPlayer() {
 }
 
 function spawnPickups() {
-    // Fixed spawn points for pickups
+    // Fixed spawn points for pickups - distributed across multiple levels
     const weaponSpawns = [
+        // Ground level
         { pos: new THREE.Vector3(-10, 1, -10), type: 'weapon', weapon: 'Shotgun' },
         { pos: new THREE.Vector3(10, 1, -10), type: 'weapon', weapon: 'Rifle' },
-        { pos: new THREE.Vector3(-10, 1, 10), type: 'weapon', weapon: 'Pistol' }
+        
+        // Mid-level platforms
+        { pos: new THREE.Vector3(-15, 6, -15), type: 'weapon', weapon: 'Pistol' },
+        { pos: new THREE.Vector3(15, 8, 15), type: 'weapon', weapon: 'Shotgun' },
+        
+        // High platforms
+        { pos: new THREE.Vector3(0, 11, -30), type: 'weapon', weapon: 'Rifle' },
+        { pos: new THREE.Vector3(30, 10, 0), type: 'weapon', weapon: 'Shotgun' },
+        
+        // Skyscraper levels
+        { pos: new THREE.Vector3(20, 9, 0), type: 'weapon', weapon: 'Rifle' },
+        { pos: new THREE.Vector3(20, 17, 0), type: 'weapon', weapon: 'Pistol' }
     ];
     
     const powerUpSpawns = [
-        { pos: new THREE.Vector3(10, 1, 10), type: 'powerup', powerup: 'Speed Boost' },
-        { pos: new THREE.Vector3(0, 1, -15), type: 'powerup', powerup: 'Shield' },
-        { pos: new THREE.Vector3(0, 1, 15), type: 'powerup', powerup: 'Damage Boost' }
+        // Ground level
+        { pos: new THREE.Vector3(0, 1, 0), type: 'powerup', powerup: 'Speed Boost' },
+        { pos: new THREE.Vector3(-25, 3, -25), type: 'powerup', powerup: 'Shield' },
+        
+        // Mid-level
+        { pos: new THREE.Vector3(0, 9, 15), type: 'powerup', powerup: 'Damage Boost' },
+        { pos: new THREE.Vector3(-15, 9, 0), type: 'powerup', powerup: 'Speed Boost' },
+        
+        // High level platforms
+        { pos: new THREE.Vector3(10, 14, 10), type: 'powerup', powerup: 'Shield' },
+        { pos: new THREE.Vector3(-10, 13, -10), type: 'powerup', powerup: 'Damage Boost' },
+        
+        // Skyscraper landing platform
+        { pos: new THREE.Vector3(20, 26, 0), type: 'powerup', powerup: 'Shield' }
     ];
     
     // Create weapon pickups
@@ -378,7 +545,7 @@ function updatePlayer(deltaTime) {
     checkGroundCollision();
     
     // Boundary collision
-    const boundary = 48;
+    const boundary = 53;
     player.position.x = Math.max(-boundary, Math.min(boundary, player.position.x));
     player.position.z = Math.max(-boundary, Math.min(boundary, player.position.z));
     
