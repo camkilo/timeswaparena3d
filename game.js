@@ -1066,31 +1066,52 @@ function setupControls() {
 }
 
 // Request pointer lock with retry mechanism
+let pointerLockRetryCount = 0;
+let pointerLockRetryTimer = null;
+
 function requestPointerLockWithRetry(attempt = 1) {
     const maxAttempts = 3;
+    pointerLockRetryCount = attempt;
     
-    document.body.requestPointerLock().then(() => {
-        console.log('Pointer lock requested successfully');
-    }).catch((error) => {
-        console.error('Pointer lock request failed:', error);
-        
-        if (attempt < maxAttempts) {
-            // Retry after a short delay
-            setTimeout(() => {
-                console.log(`Retrying pointer lock (attempt ${attempt + 1}/${maxAttempts})...`);
+    // Clear any existing retry timer
+    if (pointerLockRetryTimer) {
+        clearTimeout(pointerLockRetryTimer);
+        pointerLockRetryTimer = null;
+    }
+    
+    console.log(`Requesting pointer lock (attempt ${attempt}/${maxAttempts})...`);
+    
+    // Set up a timeout to check if pointer lock succeeded
+    pointerLockRetryTimer = setTimeout(() => {
+        // If pointer lock is still not active after a delay, retry or show error
+        if (!game.pointerLocked && game.gameStarted) {
+            if (attempt < maxAttempts) {
+                console.log(`Pointer lock failed, retrying (attempt ${attempt + 1}/${maxAttempts})...`);
                 requestPointerLockWithRetry(attempt + 1);
-            }, 500);
-        } else {
-            // Show fallback message
-            showPointerLockFailureMessage();
+            } else {
+                console.error('Pointer lock failed after maximum retries');
+                showPointerLockFailureMessage();
+            }
         }
-    });
+    }, 500); // Wait 500ms to see if pointer lock engages
+    
+    // Request pointer lock (uses event-based API)
+    document.body.requestPointerLock();
 }
 
 // Handle pointer lock change
 function handlePointerLockChange() {
+    const wasLocked = game.pointerLocked;
     game.pointerLocked = document.pointerLockElement === document.body;
     updatePointerLockUI();
+    
+    // Clear retry timer if pointer lock succeeded
+    if (game.pointerLocked && pointerLockRetryTimer) {
+        clearTimeout(pointerLockRetryTimer);
+        pointerLockRetryTimer = null;
+        pointerLockRetryCount = 0;
+        console.log('Pointer lock engaged successfully');
+    }
     
     if (game.gameStarted && game.pointerLocked) {
         // Hide the pointer lock status message
@@ -1098,10 +1119,14 @@ function handlePointerLockChange() {
         if (statusDiv) {
             statusDiv.style.display = 'none';
         }
-    } else if (game.gameStarted && !game.pointerLocked) {
-        // Show the message to click again
+    } else if (game.gameStarted && !game.pointerLocked && wasLocked) {
+        // User exited pointer lock (e.g., pressed ESC), show message to re-engage
         const statusDiv = document.getElementById('pointerLockStatus');
         if (statusDiv) {
+            statusDiv.innerHTML = `
+                <h3>Click anywhere to resume playing</h3>
+                <p>Press ESC to exit pointer lock and pause</p>
+            `;
             statusDiv.style.display = 'block';
         }
     }
@@ -1110,7 +1135,17 @@ function handlePointerLockChange() {
 // Handle pointer lock error
 function handlePointerLockError() {
     console.error('Pointer lock error occurred');
-    showPointerLockFailureMessage();
+    
+    // Clear retry timer
+    if (pointerLockRetryTimer) {
+        clearTimeout(pointerLockRetryTimer);
+        pointerLockRetryTimer = null;
+    }
+    
+    // Show failure message if we've already tried multiple times
+    if (pointerLockRetryCount >= 3) {
+        showPointerLockFailureMessage();
+    }
 }
 
 // Update pointer lock UI indicator
