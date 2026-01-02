@@ -1045,7 +1045,7 @@ function setupControls() {
         if (!game.gameStarted) return;
         
         if (!game.pointerLocked) {
-            document.body.requestPointerLock();
+            requestPointerLockWithRetry();
         } else {
             if (game.buildMode && game.selectedBlueprint && game.buildPreview) {
                 // Place structure
@@ -1057,16 +1057,105 @@ function setupControls() {
         }
     });
     
-    document.addEventListener('pointerlockchange', () => {
-        game.pointerLocked = document.pointerLockElement === document.body;
-    });
+    // Pointer lock change events
+    document.addEventListener('pointerlockchange', handlePointerLockChange);
+    document.addEventListener('pointerlockerror', handlePointerLockError);
     
     // Start button
-    document.getElementById('startButton').addEventListener('click', () => {
-        document.getElementById('instructions').style.display = 'none';
-        game.gameStarted = true;
-        document.body.requestPointerLock();
+    document.getElementById('startButton').addEventListener('click', startGame);
+}
+
+// Request pointer lock with retry mechanism
+function requestPointerLockWithRetry(attempt = 1) {
+    const maxAttempts = 3;
+    
+    document.body.requestPointerLock().then(() => {
+        console.log('Pointer lock requested successfully');
+    }).catch((error) => {
+        console.error('Pointer lock request failed:', error);
+        
+        if (attempt < maxAttempts) {
+            // Retry after a short delay
+            setTimeout(() => {
+                console.log(`Retrying pointer lock (attempt ${attempt + 1}/${maxAttempts})...`);
+                requestPointerLockWithRetry(attempt + 1);
+            }, 500);
+        } else {
+            // Show fallback message
+            showPointerLockFailureMessage();
+        }
     });
+}
+
+// Handle pointer lock change
+function handlePointerLockChange() {
+    game.pointerLocked = document.pointerLockElement === document.body;
+    updatePointerLockUI();
+    
+    if (game.gameStarted && game.pointerLocked) {
+        // Hide the pointer lock status message
+        const statusDiv = document.getElementById('pointerLockStatus');
+        if (statusDiv) {
+            statusDiv.style.display = 'none';
+        }
+    } else if (game.gameStarted && !game.pointerLocked) {
+        // Show the message to click again
+        const statusDiv = document.getElementById('pointerLockStatus');
+        if (statusDiv) {
+            statusDiv.style.display = 'block';
+        }
+    }
+}
+
+// Handle pointer lock error
+function handlePointerLockError() {
+    console.error('Pointer lock error occurred');
+    showPointerLockFailureMessage();
+}
+
+// Update pointer lock UI indicator
+function updatePointerLockUI() {
+    const indicator = document.getElementById('pointerLockIndicator');
+    const statusText = document.getElementById('lockStatusText');
+    
+    if (game.pointerLocked) {
+        indicator.classList.add('active');
+        statusText.textContent = 'Mouse Locked ✓';
+    } else {
+        indicator.classList.remove('active');
+        statusText.textContent = 'Not Locked';
+    }
+}
+
+// Show pointer lock failure message
+function showPointerLockFailureMessage() {
+    const statusDiv = document.getElementById('pointerLockStatus');
+    if (statusDiv && game.gameStarted) {
+        statusDiv.innerHTML = `
+            <h3>⚠️ Pointer Lock Failed</h3>
+            <p>Please click anywhere on the screen to enable mouse control</p>
+            <p style="font-size: 12px; color: #ccc; margin-top: 10px;">
+                If this keeps failing, try:<br>
+                • Clicking directly on the game canvas<br>
+                • Using a different browser<br>
+                • Checking browser permissions
+            </p>
+            <p style="margin-top: 15px;"><strong>Press ESC to exit pointer lock</strong></p>
+        `;
+        statusDiv.style.display = 'block';
+    }
+}
+
+// Start game function
+function startGame() {
+    document.getElementById('instructions').style.display = 'none';
+    game.gameStarted = true;
+    
+    // Show the pointer lock indicator
+    document.getElementById('pointerLockIndicator').style.display = 'block';
+    
+    // Request pointer lock with retry
+    requestPointerLockWithRetry();
 }
 
 function toggleVehicle() {

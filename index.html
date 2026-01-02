@@ -178,6 +178,24 @@
         #buildInstructions p {
             margin: 5px 0;
         }
+        
+        #pointerLockIndicator {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 150;
+            border-left: 4px solid #ff0000;
+        }
+        
+        #pointerLockIndicator.active {
+            border-left-color: #00ff00;
+        }
     </style>
 </head>
 <body>
@@ -190,6 +208,7 @@
         <p>Space - Jump (or Ascend in vehicle)</p>
         <p>E - Enter/Exit Vehicle</p>
         <p>Shift - Descend (in helicopter/airplane)</p>
+        <p><strong>ESC - Exit pointer lock / Pause</strong></p>
         <br>
         <p><strong>Vehicles:</strong></p>
         <p>Tanks, Helicopters, and Airplanes - Enter to shoot from them!</p>
@@ -213,12 +232,22 @@
     
     <div id="crosshair"></div>
     
+    <div id="pointerLockIndicator">
+        <div>🖱️ <span id="lockStatusText">Not Locked</span></div>
+        <div style="font-size: 11px; margin-top: 5px;">Press ESC to unlock</div>
+    </div>
+    
     <div id="hud">
         <div>Health: <span id="health">100</span></div>
         <div>Weapon: <span id="weapon">Pistol</span></div>
         <div>Ammo: <span id="ammo">∞</span></div>
         <div>Time: <span id="time">0</span>s</div>
         <div id="activeEffects"></div>
+    </div>
+    
+    <div id="pointerLockStatus" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.9); color: white; padding: 30px; border-radius: 10px; text-align: center; z-index: 250;">
+        <h3>Click anywhere to start playing</h3>
+        <p>Press ESC to exit pointer lock and pause</p>
     </div>
     
     <div id="inventory" style="display: none;">
