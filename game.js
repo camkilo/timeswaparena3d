@@ -1136,14 +1136,20 @@ function handlePointerLockChange() {
 function handlePointerLockError() {
     console.error('Pointer lock error occurred');
     
-    // Clear retry timer
+    // Clear retry timer since we got an explicit error
     if (pointerLockRetryTimer) {
         clearTimeout(pointerLockRetryTimer);
         pointerLockRetryTimer = null;
     }
     
-    // Show failure message if we've already tried multiple times
-    if (pointerLockRetryCount >= 3) {
+    // Retry if we haven't exceeded max attempts
+    const maxAttempts = 3;
+    if (pointerLockRetryCount < maxAttempts && game.gameStarted) {
+        console.log(`Pointer lock failed, retrying (attempt ${pointerLockRetryCount + 1}/${maxAttempts})...`);
+        setTimeout(() => {
+            requestPointerLockWithRetry(pointerLockRetryCount + 1);
+        }, 500);
+    } else if (pointerLockRetryCount >= maxAttempts) {
         showPointerLockFailureMessage();
     }
 }
